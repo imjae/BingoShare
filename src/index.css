@@ -1,0 +1,40 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f4f4f5;
+  --color-ink: #18181b;
+  --color-ink-muted: #71717a;
+  --color-line: #e4e4e7;
+  --color-accent: #4f46e5;
+}
+
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-surface: #18181b;
+    --color-surface-sunken: #27272a;
+    --color-ink: #fafafa;
+    --color-ink-muted: #a1a1aa;
+    --color-line: #3f3f46;
+    --color-accent: #818cf8;
+  }
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    'Noto Sans KR',
+    sans-serif;
+  /* 모바일에서 칸을 연타할 때 확대되는 걸 막는다 */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
