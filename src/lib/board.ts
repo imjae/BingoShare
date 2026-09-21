@@ -16,6 +16,30 @@ export function requiredCellCount(size: BoardSize, freeCenter: boolean): number 
   return cellCountOf(size) - (freeCenter && canUseFreeCenter(size) ? 1 : 0)
 }
 
+/**
+ * 판의 각 자리가 **몇 번째 문항**을 쓰는지 알려주는 표.
+ * 공짜 칸 자리는 `null`이다 — 문항을 먹지 않기 때문이다.
+ *
+ * 판 위에서 칸을 눌러 문항을 채우는 화면과, 실제 배치를 만드는 쪽이
+ * 같은 표를 써야 번호가 어긋나지 않는다.
+ */
+export function cellSlotMap(size: BoardSize, freeCenter: boolean): (number | null)[] {
+  const total = cellCountOf(size)
+  const useFree = freeCenter && canUseFreeCenter(size)
+  const centerIndex = Math.floor(total / 2)
+  const map: (number | null)[] = []
+  let slot = 0
+  for (let i = 0; i < total; i += 1) {
+    if (useFree && i === centerIndex) {
+      map.push(null)
+    } else {
+      map.push(slot)
+      slot += 1
+    }
+  }
+  return map
+}
+
 /** mulberry32 — 시드 하나로 같은 순서를 재현하는 난수 발생기 */
 function seededRandom(seed: number): () => number {
   let state = seed >>> 0

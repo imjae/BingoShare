@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import CellsField from '../components/CellsField'
+import BoardEditor from '../components/BoardEditor'
 import Layout, { Button, Notice } from '../components/Layout'
-import { canUseFreeCenter, parseCellInput, requiredCellCount } from '../lib/board'
+import { canUseFreeCenter, requiredCellCount } from '../lib/board'
 import { encodeBoard } from '../lib/encode'
 import { goTo, shareUrlOf } from '../lib/route'
 import { MAX_URL_LENGTH, targetLineOptions, type Board, type BoardSize, type GameMode } from '../types'
@@ -19,26 +19,32 @@ const MODE_INFO: Record<GameMode, { label: string; hint: string }> = {
   },
 }
 
+type Step = 'setup' | 'fill'
+
 export default function CreateScreen() {
+  const [step, setStep] = useState<Step>('setup')
   const [mode, setMode] = useState<GameMode>('shared')
   const [title, setTitle] = useState('')
   const [size, setSize] = useState<BoardSize>(5)
-  const [cellText, setCellText] = useState('')
   const [shuffle, setShuffle] = useState(true)
   const [freeCenter, setFreeCenter] = useState(true)
   const [targetLines, setTargetLines] = useState(1)
+  const [cellValues, setCellValues] = useState<string[]>([])
+  const [extras, setExtras] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const cells = useMemo(() => parseCellInput(cellText), [cellText])
   const freeCenterAvailable = canUseFreeCenter(size)
   const freeCenterOn = freeCenter && freeCenterAvailable
   const required = requiredCellCount(size, freeCenterOn)
 
-  // 각자 판 모드는 문항을 여기서 받지 않으므로 언제나 만들 수 있다.
-  const enough = mode === 'own' || cells.length >= required
-
   const lineChoices = targetLineOptions(size)
   const effectiveTarget = Math.min(targetLines, lineChoices[lineChoices.length - 1])
+
+  const placedCells = useMemo(
+    () => Array.from({ length: required }, (_, i) => cellValues[i]?.trim() ?? '').filter((cell) => cell.length > 0),
+    [cellValues, required],
+  )
+  const filledAll = placedCells.length >= required
 
   const board = useMemo<Board>(
     () => ({
@@ -46,17 +52,19 @@ export default function CreateScreen() {
       mode,
       title: title.trim() || '빙고',
       size,
-      cells: mode === 'own' ? [] : cells,
+      cells: mode === 'own' ? [] : [...placedCells, ...extras],
       shuffle: mode === 'own' ? false : shuffle,
       freeCenter: freeCenterOn,
       targetLines: effectiveTarget,
     }),
-    [mode, title, size, cells, shuffle, freeCenterOn, effectiveTarget],
+    [mode, title, size, placedCells, extras, shuffle, freeCenterOn, effectiveTarget],
   )
+
+  const ready = mode === 'own' || filledAll
 
   // 링크가 너무 길어지면 메신저에서 잘린다. 만들기 화면에서 미리 알려준다.
   const urlLength = useMemo(() => {
-    if (!enough) {
+    if (!ready) {
       return 0
     }
     try {
@@ -64,17 +72,13 @@ export default function CreateScreen() {
     } catch {
       return 0
     }
-  }, [board, enough])
+  }, [board, ready])
 
   function handleCreate() {
-    if (!enough) {
-      setError(`문항이 ${required - cells.length}개 모자랍니다.`)
-      return
-    }
     try {
       const payload = encodeBoard(board)
       if (shareUrlOf(payload).length > MAX_URL_LENGTH) {
-        setError('링크가 너무 깁니다. 문항을 줄이거나 짧게 고쳐 주세요.')
+        setError('링크가 너무 깁니다. 문항을 짧게 고치거나 여분을 줄여 주세요.')
         return
       }
       setError(null)
@@ -82,6 +86,44 @@ export default function CreateScreen() {
     } catch {
       setError('링크를 만들지 못했습니다. 문항을 확인해 주세요.')
     }
+  }
+
+  if (step === 'fill') {
+    return (
+      <Layout title={board.title} subtitle={`${size}×${size} 판 · ${effectiveTarget}줄이면 승리`}>
+        {shuffle ? (
+          <Notice>
+            칸 섞기가 켜져 있어서 참가자는 이 배치를 그대로 받지 않습니다. 여기서 정한 자리는 내가 보기 편하라고
+            있는 것이고, 실제 자리는 사람마다 달라집니다.
+          </Notice>
+        ) : (
+          <Notice>칸 섞기가 꺼져 있어서 참가자 모두 지금 이 배치 그대로 받습니다.</Notice>
+        )}
+
+        <BoardEditor
+          size={size}
+          freeCenter={freeCenterOn}
+          values={cellValues}
+          onChange={setCellValues}
+          extras={extras}
+          onExtrasChange={setExtras}
+        />
+
+        {error ? <Notice tone="error">{error}</Notice> : null}
+        {ready && urlLength > MAX_URL_LENGTH * 0.8 && urlLength <= MAX_URL_LENGTH ? (
+          <Notice tone="warn">링크 길이가 한계에 가깝습니다 ({urlLength}자). 문항을 조금 줄이는 게 안전합니다.</Notice>
+        ) : null}
+
+        <div className="mt-2 flex flex-col gap-2">
+          <Button onClick={handleCreate} disabled={!filledAll}>
+            {filledAll ? '링크 만들기' : `${required - placedCells.length}칸 더 채우기`}
+          </Button>
+          <Button variant="secondary" onClick={() => setStep('setup')}>
+            설정으로 돌아가기
+          </Button>
+        </div>
+      </Layout>
+    )
   }
 
   return (
@@ -160,21 +202,6 @@ export default function CreateScreen() {
         </span>
       </div>
 
-      {mode === 'shared' ? (
-        <CellsField
-          label="문항 — 한 줄에 하나"
-          value={cellText}
-          onChange={setCellText}
-          required={required}
-          overflowHint={(extra) => `지금은 ${required}칸보다 ${extra}개 많아서, 참가자마다 뽑히는 문항이 달라집니다.`}
-        />
-      ) : (
-        <Notice>
-          문항은 참가자가 각자 채웁니다. 링크를 받은 사람이 이름을 적고 자기 문항 {required}개를 넣으면
-          자기 판이 만들어집니다. 나도 링크를 열어 내 문항을 채우면 됩니다.
-        </Notice>
-      )}
-
       <div className="flex flex-col gap-2">
         {mode === 'shared' ? (
           <ToggleRow
@@ -193,13 +220,26 @@ export default function CreateScreen() {
         />
       </div>
 
-      {error ? <Notice tone="error">{error}</Notice> : null}
-      {enough && urlLength > MAX_URL_LENGTH * 0.8 && urlLength <= MAX_URL_LENGTH ? (
-        <Notice tone="warn">링크 길이가 한계에 가깝습니다 ({urlLength}자). 문항을 조금 줄이는 게 안전합니다.</Notice>
+      {mode === 'own' ? (
+        <Notice>
+          문항은 참가자가 각자 채웁니다. 링크를 받은 사람이 이름을 적고 빈 판에서 자기 문항 {required}개를 채우면
+          자기 판이 만들어집니다. 나도 링크를 열어 내 판을 채우면 됩니다.
+        </Notice>
       ) : null}
 
-      <Button onClick={handleCreate} disabled={!enough}>
-        {enough ? '링크 만들기' : `문항 ${required - cells.length}개 더 필요`}
+      {error ? <Notice tone="error">{error}</Notice> : null}
+
+      <Button
+        onClick={() => {
+          setError(null)
+          if (mode === 'own') {
+            handleCreate()
+          } else {
+            setStep('fill')
+          }
+        }}
+      >
+        {mode === 'own' ? '초대 링크 만들기' : '판 채우러 가기'}
       </Button>
     </Layout>
   )

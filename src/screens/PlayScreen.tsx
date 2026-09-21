@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react'
 import BingoGrid from '../components/BingoGrid'
-import CellsField from '../components/CellsField'
+import BoardEditor from '../components/BoardEditor'
 import Layout, { Button, Notice } from '../components/Layout'
 import {
   canUseFreeCenter,
   cellCountOf,
   evaluateBingo,
   hasWon,
-  parseCellInput,
   requiredCellCount,
   resolveBoard,
 } from '../lib/board'
@@ -157,30 +156,26 @@ function OwnCellsForm({
   onDone: (cells: string[]) => void
   onBack: () => void
 }) {
-  const [text, setText] = useState('')
   const required = requiredCellCount(board.size, board.freeCenter)
-  const cells = parseCellInput(text)
-  const enough = cells.length >= required
+  const [values, setValues] = useState<string[]>(() => Array.from({ length: required }, () => ''))
+
+  const placed = values.map((value) => value.trim())
+  const missing = placed.filter((value) => value.length === 0).length
+  const enough = missing === 0
 
   return (
-    <Layout title={board.title} subtitle={`${participant} 님의 문항`}>
+    <Layout title={board.title} subtitle={`${participant} 님의 판 채우기`}>
       <Notice>
         내 판에 들어갈 문항을 직접 채웁니다. 남의 문항과 달라도 됩니다. {board.targetLines}줄을 먼저 만든
         사람이 이깁니다.
       </Notice>
 
-      <CellsField
-        label="내 문항 — 한 줄에 하나"
-        value={text}
-        onChange={setText}
-        required={required}
-        overflowHint={(extra) => `${required}칸을 넘은 ${extra}개는 판에 들어가지 않습니다.`}
-      />
+      <BoardEditor size={board.size} freeCenter={board.freeCenter} values={values} onChange={setValues} />
 
       <Notice tone="warn">한 번 정하면 바꿀 수 없습니다. 체크한 칸의 내용이 달라지기 때문입니다.</Notice>
 
-      <Button onClick={() => onDone(cells.slice(0, required))} disabled={!enough}>
-        {enough ? '내 판 만들기' : `문항 ${required - cells.length}개 더 필요`}
+      <Button onClick={() => onDone(placed)} disabled={!enough}>
+        {enough ? '이 판으로 시작하기' : `${missing}칸 더 채우기`}
       </Button>
       <Button variant="secondary" onClick={onBack}>
         이름 다시 적기
