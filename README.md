@@ -2,13 +2,17 @@
 
 커스텀 빙고판을 만들어 **링크 하나로 공유**하고, 각자 진행하면서 서로의 현황을 보는 웹앱.
 
+**▶ https://imjae.github.io/BingoShare/**
+
 - 설계: [Docs/PLAN.md](Docs/PLAN.md)
 - 배포: [Docs/DEPLOY.md](Docs/DEPLOY.md)
 
 ## 현재 상태
 
-**M0 — 뼈대.** Vite + React + TypeScript + Tailwind 위에 모바일 우선 화면 껍데기가 올라가 있다.
-빙고판은 아직 겉모습 확인용 고정 예시이고, 판 만들기·링크 공유는 M1에서 붙인다.
+**M0 — 뼈대.** Vite + React + TypeScript + Tailwind 위에 모바일 우선 화면 껍데기가 올라가 있고,
+`main`에 푸시하면 자동으로 배포된다.
+
+빙고판은 아직 겉모습 확인용 고정 예시다. 판 만들기·링크 공유는 M1에서 붙인다.
 
 ## 실행
 
