@@ -2,16 +2,16 @@ import { useState } from 'react'
 import Layout, { Button, Notice } from '../components/Layout'
 import { decodeBoard } from '../lib/encode'
 import { goTo, shareUrlOf } from '../lib/route'
-import { MAX_URL_LENGTH } from '../types'
+import { MAX_URL_LENGTH, type Board } from '../types'
 
 type Props = { payload: string }
 
 export default function ShareScreen({ payload }: Props) {
   const [copied, setCopied] = useState(false)
 
-  let title: string
+  let board: Board
   try {
-    title = decodeBoard(payload).title
+    board = decodeBoard(payload)
   } catch {
     return (
       <Layout title="링크를 읽지 못했습니다">
@@ -22,6 +22,7 @@ export default function ShareScreen({ payload }: Props) {
   }
 
   const url = shareUrlOf(payload)
+  const isOwn = board.mode === 'own'
 
   async function copy() {
     try {
@@ -36,14 +37,19 @@ export default function ShareScreen({ payload }: Props) {
   }
 
   return (
-    <Layout title="판이 준비됐습니다" subtitle={title}>
+    <Layout title={isOwn ? '초대 링크가 준비됐습니다' : '판이 준비됐습니다'} subtitle={board.title}>
       <Notice>
-        아래 링크를 보내면 상대가 자기 판을 열게 됩니다. 판 내용이 링크 안에 통째로 들어 있어서
-        서버에 저장되는 것은 없습니다.
+        {isOwn
+          ? '링크를 받은 사람은 이름을 적고 자기 문항을 채워 자기 판을 만듭니다. 나도 아래에서 내 문항을 채우면 됩니다.'
+          : '아래 링크를 보내면 상대가 자기 판을 열게 됩니다. 판 내용이 링크 안에 통째로 들어 있어서 서버에 저장되는 것은 없습니다.'}
+      </Notice>
+
+      <Notice tone="warn">
+        {board.size}×{board.size} 판 · {board.targetLines}줄을 먼저 만든 사람이 승리
       </Notice>
 
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium">공유 링크</span>
+        <span className="text-sm font-medium">{isOwn ? '초대 링크' : '공유 링크'}</span>
         <textarea
           readOnly
           value={url}
@@ -58,7 +64,7 @@ export default function ShareScreen({ payload }: Props) {
 
       <Button onClick={copy}>{copied ? '복사했습니다' : '링크 복사'}</Button>
       <Button variant="secondary" onClick={() => goTo(`b=${payload}`)}>
-        내 판 열기
+        {isOwn ? '내 문항 채우기' : '내 판 열기'}
       </Button>
       <Button variant="secondary" onClick={() => goTo('')}>
         새 판 만들기

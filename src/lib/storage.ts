@@ -10,6 +10,7 @@
 
 const NAME_PREFIX = 'bingoshare:name:'
 const PROGRESS_PREFIX = 'bingoshare:progress:'
+const OWN_CELLS_PREFIX = 'bingoshare:cells:'
 
 function readRaw(key: string): string | null {
   try {
@@ -54,4 +55,37 @@ export function loadProgress(boardId: string, participant: string): Set<number> 
 
 export function saveProgress(boardId: string, participant: string, checked: ReadonlySet<number>): void {
   writeRaw(`${PROGRESS_PREFIX}${boardId}:${participant}`, JSON.stringify([...checked]))
+}
+
+/**
+ * 각자 판 모드에서 참가자가 직접 적은 문항.
+ * 한 번 정하면 바꾸지 않는다 — 바꾸면 이미 체크한 칸의 내용이 달라지기 때문이다.
+ */
+export function loadOwnCells(boardId: string, participant: string): string[] | null {
+  const raw = readRaw(`${OWN_CELLS_PREFIX}${boardId}:${participant}`)
+  if (!raw) {
+    return null
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) {
+      return null
+    }
+    const cells = parsed.filter((value): value is string => typeof value === 'string')
+    return cells.length > 0 ? cells : null
+  } catch {
+    return null
+  }
+}
+
+export function saveOwnCells(boardId: string, participant: string, cells: string[]): void {
+  writeRaw(`${OWN_CELLS_PREFIX}${boardId}:${participant}`, JSON.stringify(cells))
+}
+
+export function clearOwnCells(boardId: string, participant: string): void {
+  try {
+    window.localStorage.removeItem(`${OWN_CELLS_PREFIX}${boardId}:${participant}`)
+  } catch {
+    // 지우지 못해도 다음 저장이 덮어쓴다.
+  }
 }

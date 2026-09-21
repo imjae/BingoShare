@@ -44,18 +44,23 @@ function shuffled<T>(items: T[], random: () => number): T[] {
  * 시드를 **판 id + 참가자 이름**에서 뽑기 때문에, 새로고침해도 같은 자리가 나온다.
  * 저장해 둔 진행 상황이 엉뚱한 칸에 붙는 사고를 막는 핵심이다.
  */
-export function resolveBoard(board: Board, participant: string): ResolvedBoard {
+export function resolveBoard(board: Board, participant: string, ownCells: string[] = []): ResolvedBoard {
   const boardId = boardIdOf(board)
   const total = cellCountOf(board.size)
   const useFree = board.freeCenter && canUseFreeCenter(board.size)
   const need = requiredCellCount(board.size, board.freeCenter)
 
+  // 각자 판 모드에서는 자기가 적은 문항을 적은 순서 그대로 쓴다.
+  // 남과 배치를 맞출 이유가 없으니 섞지 않는다.
+  const pool = board.mode === 'own' ? ownCells : board.cells
+  const doShuffle = board.mode === 'shared' && board.shuffle
+
   let picked: string[]
-  if (board.shuffle) {
+  if (doShuffle) {
     const random = seededRandom(hashString(`${boardId}:${participant}`))
-    picked = shuffled(board.cells, random).slice(0, need)
+    picked = shuffled(pool, random).slice(0, need)
   } else {
-    picked = board.cells.slice(0, need)
+    picked = pool.slice(0, need)
   }
 
   // 문항이 모자라면 빈 칸으로 채운다. 만들기 화면에서 막고 있지만,
@@ -97,6 +102,11 @@ export type BingoResult = {
   /** 완성된 줄의 칸 번호를 모두 합친 것 — 강조 표시에 쓴다 */
   cellsInBingo: Set<number>
   lineCount: number
+}
+
+/** 승리 조건을 채웠는지 */
+export function hasWon(board: Board, lineCount: number): boolean {
+  return lineCount >= board.targetLines
 }
 
 export function evaluateBingo(size: BoardSize, checked: ReadonlySet<number>): BingoResult {
