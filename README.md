@@ -4,8 +4,10 @@
 
 **▶ https://imjae.github.io/BingoShare/**
 
-- 설계: [Docs/PLAN.md](Docs/PLAN.md)
+- 설계와 결정 기록: [Docs/PLAN.md](Docs/PLAN.md)
+- 작업 기록: [Docs/WORKLOG.md](Docs/WORKLOG.md)
 - 배포: [Docs/DEPLOY.md](Docs/DEPLOY.md)
+- AI 에이전트 작업 지침: [CLAUDE.md](CLAUDE.md)
 
 ## 현재 상태
 
