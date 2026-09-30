@@ -1,16 +1,34 @@
+import { cellCountOf } from './board'
+import type { BoardSize, MyBoard } from '../types'
+
 /**
- * 진행 상황과 참가자 이름을 읽고 쓰는 **유일한 통로.**
+ * 내 판을 읽고 쓰는 **유일한 통로.**
  *
- * M1은 브라우저 저장소만 쓴다 — 서버가 없으므로 내 진행만 남는다.
- * M2에서 현황판을 붙일 때는 **이 파일만 갈아끼운다.** 화면 코드는 그대로 둔다.
+ * 브라우저 저장소에만 둔다. 서버가 없으니 인터넷이 끊겨도 그대로 읽고 쓴다.
+ * 저장 방식을 바꿀 일이 생기면 **이 파일만 갈아끼운다.** 화면 코드는 그대로 둔다.
  *
  * 저장소는 사생활 보호 모드나 저장 차단 설정에서 통째로 막힐 수 있으므로
  * 모든 접근을 감싸고, 실패해도 앱이 멈추지 않게 한다.
  */
 
-const NAME_PREFIX = 'bingoshare:name:'
-const PROGRESS_PREFIX = 'bingoshare:progress:'
-const OWN_CELLS_PREFIX = 'bingoshare:cells:'
+// imjae.github.io 도메인은 다른 저장소의 페이지와 저장소를 같이 쓴다. 앞머리로 우리 것만 가린다.
+// 2026-09-30 간소화 전의 키(name: · progress: · cells:)와도 섞이지 않게 새 앞머리를 쓴다.
+const PREFIX = 'bingoshare:mine:'
+
+/** 저장소에 실제로 들어가는 모양. 목록에서 판을 다시 열려면 링크 조각이 필요하다 */
+type StoredBoard = MyBoard & {
+  payload: string
+  updatedAt: number
+}
+
+/** 이 기기에 저장된 판 하나 — 처음 화면의 목록에 쓴다 */
+export type SavedEntry = {
+  boardId: string
+  payload: string
+  name: string
+  checked: number[]
+  updatedAt: number
+}
 
 function readRaw(key: string): string | null {
   try {
@@ -20,72 +38,106 @@ function readRaw(key: string): string | null {
   }
 }
 
-function writeRaw(key: string, value: string): void {
+function writeRaw(key: string, value: string): boolean {
   try {
     window.localStorage.setItem(key, value)
+    return true
   } catch {
-    // 저장이 막힌 환경이면 이번 세션 동안만 유지된다. 알릴 만한 일은 아니다.
+    return false
   }
 }
 
-export function loadParticipantName(boardId: string): string | null {
-  const name = readRaw(NAME_PREFIX + boardId)
-  return name && name.length > 0 ? name : null
-}
-
-export function saveParticipantName(boardId: string, name: string): void {
-  writeRaw(NAME_PREFIX + boardId, name)
-}
-
-export function loadProgress(boardId: string, participant: string): Set<number> {
-  const raw = readRaw(`${PROGRESS_PREFIX}${boardId}:${participant}`)
+/** 손으로 고쳤거나 옛 형식이어도 무너지지 않게, 모양만 확인하고 나머지는 기본값으로 채운다 */
+function parseStored(raw: string | null): StoredBoard | null {
   if (!raw) {
-    return new Set()
+    return null
   }
+  let parsed: unknown
   try {
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) {
-      return new Set()
-    }
-    return new Set(parsed.filter((value): value is number => typeof value === 'number'))
+    parsed = JSON.parse(raw)
   } catch {
-    return new Set()
+    return null
   }
-}
-
-export function saveProgress(boardId: string, participant: string, checked: ReadonlySet<number>): void {
-  writeRaw(`${PROGRESS_PREFIX}${boardId}:${participant}`, JSON.stringify([...checked]))
+  if (typeof parsed !== 'object' || parsed === null) {
+    return null
+  }
+  const record = parsed as Record<string, unknown>
+  if (typeof record.payload !== 'string') {
+    return null
+  }
+  return {
+    payload: record.payload,
+    name: typeof record.name === 'string' ? record.name : '',
+    cells: Array.isArray(record.cells) ? record.cells.map((cell) => (typeof cell === 'string' ? cell : '')) : [],
+    checked: Array.isArray(record.checked)
+      ? record.checked.filter((value): value is number => Number.isInteger(value))
+      : [],
+    updatedAt: typeof record.updatedAt === 'number' ? record.updatedAt : 0,
+  }
 }
 
 /**
- * 각자 판 모드에서 참가자가 직접 적은 문항.
- * 한 번 정하면 바꾸지 않는다 — 바꾸면 이미 체크한 칸의 내용이 달라지기 때문이다.
+ * 링크 하나에 해당하는 내 판. 없으면 `null`.
+ * 칸 수는 판 크기에 맞춰 자르거나 빈 칸으로 채우고, 판 밖의 체크는 버린다.
  */
-export function loadOwnCells(boardId: string, participant: string): string[] | null {
-  const raw = readRaw(`${OWN_CELLS_PREFIX}${boardId}:${participant}`)
-  if (!raw) {
+export function loadMyBoard(boardId: string, size: BoardSize): MyBoard | null {
+  const stored = parseStored(readRaw(PREFIX + boardId))
+  if (!stored) {
     return null
   }
+  const total = cellCountOf(size)
+  return {
+    name: stored.name,
+    cells: Array.from({ length: total }, (_, i) => stored.cells[i] ?? ''),
+    checked: [...new Set(stored.checked)].filter((index) => index >= 0 && index < total).sort((a, b) => a - b),
+  }
+}
+
+/** 저장에 성공했는지 돌려준다. 실패하면 화면이 알려야 한다 — 창을 닫으면 판이 사라지기 때문이다 */
+export function saveMyBoard(boardId: string, payload: string, board: MyBoard): boolean {
+  const record: StoredBoard = { ...board, payload, updatedAt: Date.now() }
+  return writeRaw(PREFIX + boardId, JSON.stringify(record))
+}
+
+/** 이 기기에 저장된 판 전부. 최근에 만진 것부터 */
+export function listMyBoards(): SavedEntry[] {
+  const keys: string[] = []
   try {
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) {
-      return null
+    const store = window.localStorage
+    for (let i = 0; i < store.length; i += 1) {
+      const key = store.key(i)
+      if (key?.startsWith(PREFIX)) {
+        keys.push(key)
+      }
     }
-    const cells = parsed.filter((value): value is string => typeof value === 'string')
-    return cells.length > 0 ? cells : null
   } catch {
-    return null
+    return []
   }
+
+  const entries: SavedEntry[] = []
+  for (const key of keys) {
+    const stored = parseStored(readRaw(key))
+    if (stored) {
+      entries.push({
+        boardId: key.slice(PREFIX.length),
+        payload: stored.payload,
+        name: stored.name,
+        checked: stored.checked,
+        updatedAt: stored.updatedAt,
+      })
+    }
+  }
+  return entries.sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
-export function saveOwnCells(boardId: string, participant: string, cells: string[]): void {
-  writeRaw(`${OWN_CELLS_PREFIX}${boardId}:${participant}`, JSON.stringify(cells))
-}
-
-export function clearOwnCells(boardId: string, participant: string): void {
+/**
+ * 공간이 모자랄 때 이 사이트의 저장분을 지우지 말아 달라고 브라우저에 부탁한다.
+ * 거절되거나 지원하지 않아도 저장 자체는 된다 — 오래 두었을 때 지워질 위험만 남는다.
+ */
+export function requestPersistence(): void {
   try {
-    window.localStorage.removeItem(`${OWN_CELLS_PREFIX}${boardId}:${participant}`)
+    navigator.storage?.persist?.().catch(() => {})
   } catch {
-    // 지우지 못해도 다음 저장이 덮어쓴다.
+    // 부탁을 못 해도 저장은 된다.
   }
 }

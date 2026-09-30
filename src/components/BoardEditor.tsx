@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { cellSlotMap, parseCellInput, requiredCellCount } from '../lib/board'
+import { useEffect, useRef, useState } from 'react'
+import { cellCountOf, parseCellInput } from '../lib/board'
 import { SAMPLE_CELLS } from '../lib/samples'
 import type { BoardSize } from '../types'
 
@@ -17,18 +17,13 @@ const CELL_TEXT: Record<BoardSize, string> = {
 
 type Props = {
   size: BoardSize
-  freeCenter: boolean
   /** 칸 수만큼의 문항. 아직 안 채운 칸은 빈 문자열 */
   values: string[]
   onChange: (next: string[]) => void
-  /** 칸 수를 넘겨 붙여넣은 여분 문항 — 없으면 이 기능을 쓰지 않는다 */
-  extras?: string[]
-  onExtrasChange?: (next: string[]) => void
 }
 
-export default function BoardEditor({ size, freeCenter, values, onChange, extras, onExtrasChange }: Props) {
-  const required = requiredCellCount(size, freeCenter)
-  const slots = useMemo(() => cellSlotMap(size, freeCenter), [size, freeCenter])
+export default function BoardEditor({ size, values, onChange }: Props) {
+  const total = cellCountOf(size)
   const [selected, setSelected] = useState<number | null>(null)
   const [pasteOpen, setPasteOpen] = useState(false)
   const [pasteText, setPasteText] = useState('')
@@ -44,17 +39,14 @@ export default function BoardEditor({ size, freeCenter, values, onChange, extras
   const filled = values.filter((value) => value.trim().length > 0).length
 
   function setValueAt(index: number, text: string) {
-    const next = values.slice()
-    while (next.length < required) {
-      next.push('')
-    }
+    const next = Array.from({ length: total }, (_, i) => values[i] ?? '')
     next[index] = text
     onChange(next)
   }
 
   /** 다음 빈 칸으로 넘어간다. 없으면 입력을 닫는다 */
   function advance(from: number) {
-    for (let i = from + 1; i < required; i += 1) {
+    for (let i = from + 1; i < total; i += 1) {
       if (!values[i]?.trim()) {
         setSelected(i)
         return
@@ -69,13 +61,8 @@ export default function BoardEditor({ size, freeCenter, values, onChange, extras
     setSelected(null)
   }
 
-  function applyPaste() {
-    const lines = parseCellInput(pasteText)
-    const next = Array.from({ length: required }, (_, i) => lines[i] ?? '')
-    onChange(next)
-    onExtrasChange?.(lines.slice(required))
-    setPasteText('')
-    setPasteOpen(false)
+  function fillFrom(lines: string[]) {
+    onChange(Array.from({ length: total }, (_, i) => lines[i] ?? ''))
     setSelected(null)
   }
 
@@ -83,30 +70,20 @@ export default function BoardEditor({ size, freeCenter, values, onChange, extras
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between text-sm font-medium">
         <span>판 채우기</span>
-        <span className={filled >= required ? 'text-ink-muted' : 'text-amber-600 dark:text-amber-400'}>
-          {filled} / {required}
+        <span className={filled >= total ? 'text-ink-muted' : 'text-amber-600 dark:text-amber-400'}>
+          {filled} / {total}
         </span>
       </div>
 
       <div className={`grid gap-1.5 ${GRID_COLUMNS[size]}`}>
-        {slots.map((slot, position) => {
-          if (slot === null) {
-            return (
-              <div
-                key={position}
-                className="flex aspect-square items-center justify-center rounded-md border border-line bg-surface-sunken text-[10px] font-medium text-ink-muted"
-              >
-                FREE
-              </div>
-            )
-          }
-          const text = values[slot] ?? ''
-          const isSelected = selected === slot
+        {Array.from({ length: total }, (_, index) => {
+          const text = values[index] ?? ''
+          const isSelected = selected === index
           return (
             <button
-              key={position}
+              key={index}
               type="button"
-              onClick={() => setSelected(slot)}
+              onClick={() => setSelected(index)}
               className={[
                 'flex aspect-square items-center justify-center rounded-md border p-1',
                 'font-medium break-keep transition-colors',
@@ -118,7 +95,7 @@ export default function BoardEditor({ size, freeCenter, values, onChange, extras
                     : 'border-dashed border-line bg-transparent text-ink-muted',
               ].join(' ')}
             >
-              {text || slot + 1}
+              {text || index + 1}
             </button>
           )
         })}
@@ -181,11 +158,7 @@ export default function BoardEditor({ size, freeCenter, values, onChange, extras
         {filled === 0 ? (
           <button
             type="button"
-            onClick={() => {
-              const lines = parseCellInput(SAMPLE_CELLS)
-              onChange(Array.from({ length: required }, (_, i) => lines[i] ?? ''))
-              onExtrasChange?.(lines.slice(required))
-            }}
+            onClick={() => fillFrom(parseCellInput(SAMPLE_CELLS))}
             className="text-xs font-medium text-accent underline underline-offset-2"
           >
             예시로 채우기
@@ -194,11 +167,7 @@ export default function BoardEditor({ size, freeCenter, values, onChange, extras
         {filled > 0 ? (
           <button
             type="button"
-            onClick={() => {
-              onChange(Array.from({ length: required }, () => ''))
-              onExtrasChange?.([])
-              setSelected(null)
-            }}
+            onClick={() => fillFrom([])}
             className="text-xs font-medium text-ink-muted underline underline-offset-2"
           >
             전부 비우기
@@ -209,7 +178,7 @@ export default function BoardEditor({ size, freeCenter, values, onChange, extras
       {pasteOpen ? (
         <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface-sunken px-3 py-3">
           <span className="text-xs text-ink-muted break-keep">
-            한 줄에 하나씩. 위 칸부터 순서대로 채웁니다. 빈 줄과 중복은 걸러집니다.
+            한 줄에 하나씩. 위 칸부터 순서대로 채웁니다. 빈 줄과 중복은 걸러지고, 칸 수를 넘는 줄은 버려집니다.
           </span>
           <textarea
             value={pasteText}
@@ -220,33 +189,15 @@ export default function BoardEditor({ size, freeCenter, values, onChange, extras
           />
           <button
             type="button"
-            onClick={applyPaste}
+            onClick={() => {
+              fillFrom(parseCellInput(pasteText))
+              setPasteText('')
+              setPasteOpen(false)
+            }}
             disabled={parseCellInput(pasteText).length === 0}
             className="rounded-lg bg-accent px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
           >
             판에 채우기
-          </button>
-        </div>
-      ) : null}
-
-      {extras && extras.length > 0 ? (
-        <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface-sunken px-3 py-2.5">
-          <span className="text-xs text-ink-muted break-keep">
-            칸을 넘은 여분 {extras.length}개. 이게 있으면 참가자마다 뽑히는 문항이 달라집니다.
-          </span>
-          <div className="flex flex-wrap gap-1">
-            {extras.map((item, index) => (
-              <span key={index} className="rounded border border-line px-1.5 py-0.5 text-[10px] text-ink-muted">
-                {item}
-              </span>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => onExtrasChange?.([])}
-            className="self-start text-xs font-medium text-ink-muted underline underline-offset-2"
-          >
-            여분 비우기
           </button>
         </div>
       ) : null}

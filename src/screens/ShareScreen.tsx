@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Layout, { Button, Notice } from '../components/Layout'
 import { decodeBoard } from '../lib/encode'
 import { goTo, shareUrlOf } from '../lib/route'
-import { MAX_URL_LENGTH, type Board } from '../types'
+import type { Board } from '../types'
 
 type Props = { payload: string }
 
@@ -22,7 +22,6 @@ export default function ShareScreen({ payload }: Props) {
   }
 
   const url = shareUrlOf(payload)
-  const isOwn = board.mode === 'own'
 
   async function copy() {
     try {
@@ -37,11 +36,10 @@ export default function ShareScreen({ payload }: Props) {
   }
 
   return (
-    <Layout title={isOwn ? '초대 링크가 준비됐습니다' : '판이 준비됐습니다'} subtitle={board.title}>
+    <Layout title="초대 링크가 준비됐습니다" subtitle={board.title}>
       <Notice>
-        {isOwn
-          ? '링크를 받은 사람은 이름을 적고 자기 문항을 채워 자기 판을 만듭니다. 나도 아래에서 내 문항을 채우면 됩니다.'
-          : '아래 링크를 보내면 상대가 자기 판을 열게 됩니다. 판 내용이 링크 안에 통째로 들어 있어서 서버에 저장되는 것은 없습니다.'}
+        링크를 받은 사람은 이름을 적고 자기 문항을 채워 자기 판을 만듭니다. 판은 각자의 기기에 저장되고, 한 번 연
+        뒤에는 인터넷이 없어도 열립니다.
       </Notice>
 
       <Notice tone="warn">
@@ -49,7 +47,7 @@ export default function ShareScreen({ payload }: Props) {
       </Notice>
 
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium">{isOwn ? '초대 링크' : '공유 링크'}</span>
+        <span className="text-sm font-medium">초대 링크</span>
         <textarea
           readOnly
           value={url}
@@ -57,17 +55,14 @@ export default function ShareScreen({ payload }: Props) {
           onFocus={(event) => event.currentTarget.select()}
           className="resize-none rounded-lg border border-line bg-surface-sunken px-3 py-2.5 font-mono text-xs break-all outline-none"
         />
-        <span className="text-xs text-ink-muted">
-          {url.length}자 / 최대 {MAX_URL_LENGTH}자
-        </span>
       </div>
 
       <Button onClick={copy}>{copied ? '복사했습니다' : '링크 복사'}</Button>
       <Button variant="secondary" onClick={() => goTo(`b=${payload}`)}>
-        {isOwn ? '내 문항 채우기' : '내 판 열기'}
+        내 판 채우기
       </Button>
       <Button variant="secondary" onClick={() => goTo('')}>
-        새 판 만들기
+        처음 화면으로
       </Button>
     </Layout>
   )
