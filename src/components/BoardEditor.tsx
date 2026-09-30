@@ -1,18 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
+import CellText from './CellText'
 import { cellCountOf, parseCellInput } from '../lib/board'
 import { SAMPLE_CELLS } from '../lib/samples'
-import type { BoardSize } from '../types'
+import { MAX_CELL_LENGTH, type BoardSize } from '../types'
 
 const GRID_COLUMNS: Record<BoardSize, string> = {
   3: 'grid-cols-3',
   4: 'grid-cols-4',
   5: 'grid-cols-5',
-}
-
-const CELL_TEXT: Record<BoardSize, string> = {
-  3: 'text-sm',
-  4: 'text-xs',
-  5: 'text-[10px]',
 }
 
 type Props = {
@@ -27,7 +22,7 @@ export default function BoardEditor({ size, values, onChange }: Props) {
   const [selected, setSelected] = useState<number | null>(null)
   const [pasteOpen, setPasteOpen] = useState(false)
   const [pasteText, setPasteText] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // 칸을 고르면 바로 적을 수 있어야 한다. 폰에서는 이게 키보드를 띄우는 신호이기도 하다.
   useEffect(() => {
@@ -85,9 +80,7 @@ export default function BoardEditor({ size, values, onChange }: Props) {
               type="button"
               onClick={() => setSelected(index)}
               className={[
-                'flex aspect-square items-center justify-center rounded-md border p-1',
-                'font-medium break-keep transition-colors',
-                CELL_TEXT[size],
+                'relative aspect-square rounded-md border font-medium transition-colors',
                 isSelected
                   ? 'border-accent bg-accent/15 text-ink ring-2 ring-accent'
                   : text
@@ -95,7 +88,7 @@ export default function BoardEditor({ size, values, onChange }: Props) {
                     : 'border-dashed border-line bg-transparent text-ink-muted',
               ].join(' ')}
             >
-              {text || index + 1}
+              <CellText size={size} text={text || String(index + 1)} />
             </button>
           )
         })}
@@ -114,15 +107,29 @@ export default function BoardEditor({ size, values, onChange }: Props) {
             advance(selected)
           }}
         >
-          <span className="text-xs font-medium text-ink-muted">{selected + 1}번 칸</span>
-          <input
+          <div className="flex items-baseline justify-between text-xs font-medium text-ink-muted">
+            <span>{selected + 1}번 칸</span>
+            <span>
+              {(values[selected] ?? '').length} / {MAX_CELL_LENGTH}
+            </span>
+          </div>
+          {/* 긴 문항을 한눈에 보도록 두 줄짜리 입력칸. 문항 자체는 한 줄이라 줄바꿈은 넣지 않는다 */}
+          <textarea
             ref={inputRef}
             value={values[selected] ?? ''}
-            onChange={(event) => setValueAt(selected, event.target.value)}
+            onChange={(event) => setValueAt(selected, event.target.value.replace(/\s*\n\s*/g, ' '))}
+            onKeyDown={(event) => {
+              // 엔터는 줄바꿈 대신 다음 칸으로. 한글 조합 중의 엔터는 조합을 끝내는 것이라 건드리지 않는다.
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                event.preventDefault()
+                advance(selected)
+              }
+            }}
             placeholder="이 칸에 들어갈 문항"
-            maxLength={30}
+            rows={2}
+            maxLength={MAX_CELL_LENGTH}
             enterKeyHint="next"
-            className="rounded-lg border border-line bg-surface px-3 py-2.5 text-base outline-none focus:border-accent"
+            className="resize-none rounded-lg border border-line bg-surface px-3 py-2.5 text-base break-keep outline-none focus:border-accent"
           />
           <div className="grid grid-cols-3 gap-2">
             <button

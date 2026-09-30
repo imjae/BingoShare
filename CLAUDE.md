@@ -37,6 +37,7 @@ npm run build     # tsc -b + vite build — 기본 컴파일 게이트. dist/sw.
 | `board.test.ts` | 빙고·승리 판정, 다 채웠는지, 붙여넣기 해석 |
 | `encode.test.ts` | **옛 링크가 계속 열리는지**(옛 커밋이 실제로 만든 문자열로), 새 링크 형식의 자리, 링크 구분 |
 | `storage.test.ts` | 저장·불러오기, 망가진 데이터 정규화, **저장이 막힌 브라우저에서 멈추지 않는지** |
+| `fit.test.ts` | 칸에 들어가는 가장 큰 글자 크기 찾기 — 경계값, 측정 횟수(칸 25개를 매번 재므로) |
 
 이 규칙을 바꿀 생각이면 **테스트를 먼저 고치고** 왜 바뀌어야 하는지를 남긴다.
 
@@ -65,13 +66,15 @@ npm run build     # tsc -b + vite build — 기본 컴파일 게이트. dist/sw.
 | `src/lib/board.ts` | 빙고 판정, 승리 판정, 붙여넣기 해석 |
 | `src/lib/storage.ts` | **내 판(이름·문항·체크)의 유일한 통로.** 저장된 판 목록도 여기서 |
 | `src/lib/offline.ts` | 서비스 워커 등록 (빌드본에서만) |
+| `src/lib/fit.ts` | 글자 크기 이분 탐색. DOM 없이 테스트하려고 `CellText`에서 떼어 냈다 |
 | `src/lib/route.ts` | 주소 해시로 화면 가르기 |
 | `src/lib/samples.ts` | 예시 문항 |
 | `src/screens/CreateScreen.tsx` | 처음 화면. 이 기기에 저장된 판 목록 + 초대 링크 만들기 |
 | `src/screens/ShareScreen.tsx` | 초대 링크 복사 |
 | `src/screens/PlayScreen.tsx` | 이름 → 판 채우기 → 진행. 진행 중 문항 고치기·이름 바꾸기 |
 | `src/components/BoardEditor.tsx` | 빈 판에서 칸을 눌러 채우는 입력 화면 |
-| `src/components/BingoGrid.tsx` | 진행용 빙고 격자 |
+| `src/components/BingoGrid.tsx` | 진행용 빙고 격자. 짧게 누르면 체크, **길게 누르면 전체 문항** |
+| `src/components/CellText.tsx` | 칸 글자를 **절대 넘치지 않게** 맞춘다 (줄이기 → 단어 중간 줄바꿈 → `…`) |
 | `src/components/Layout.tsx` | 화면 껍데기, 버튼, 안내 상자 |
 | `sw/service-worker.js` | 서비스 워커 본체. 빌드가 파일 목록을 붙여 `dist/sw.js`로 낸다 |
 | `vite.config.ts` | `offlineCache` 플러그인 — 빌드 끝에 dist를 훑어 `sw.js`를 만든다 |
@@ -173,6 +176,9 @@ mingw curl이라 `-K /tmp/foo.cfg`가 실패한다. 설정은 **stdin으로** �
 `read_page`, `javascript_tool`로 하고 스크린샷은 최종 눈 확인에만 쓴다.
 버튼은 `javascript_tool`로 요소를 직접 누르고, React 입력칸은 `HTMLInputElement.prototype`의
 `value` setter로 넣은 뒤 `input` 이벤트를 쏜다 — `value`만 바꾸면 React가 모른다.
+칸 입력칸은 `<textarea>`라서 `HTMLTextAreaElement.prototype`의 setter를 써야 한다.
+길게 누르기는 `PointerEvent('pointerdown')` → 600ms 기다림 → `pointerup`으로 흉내 낸다.
+칸이 넘치는지는 스크린샷 대신 글자 상자와 칸 상자의 `getBoundingClientRect()`를 비교해 잰다.
 새로고침하면 `window`에 붙여 둔 시험용 함수가 사라지니 다시 정의한다.
 
 ## 배포와 깃

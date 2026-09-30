@@ -30,6 +30,12 @@ export type MyBoard = {
   checked: number[]
 }
 
+/**
+ * 한 칸에 적을 수 있는 글자 수. 긴 문항이 잦아 30자에서 늘렸다(2026-09-30).
+ * 칸보다 길면 글자를 줄여 맞추고, 그래도 넘치면 `…`로 자른 뒤 길게 눌러 전체를 본다.
+ */
+export const MAX_CELL_LENGTH = 60
+
 /** 고를 수 있는 승리 줄 수 — 판이 작을수록 만들 수 있는 줄도 적다 */
 export function targetLineOptions(size: BoardSize): number[] {
   const maxLines = size * 2 + 2
